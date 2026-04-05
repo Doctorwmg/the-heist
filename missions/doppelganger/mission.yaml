@@ -1,0 +1,16 @@
+slug: doppelganger
+title: "The Doppelg\xE4nger"
+codename: "The Doppelg\xE4nger"
+description: "A competitor's model is impossibly good. Prove data theft and build detection."
+difficulty: advanced
+skills:
+  - bash
+  - sql
+  - python
+  - vector_db
+  - fine_tuning
+  - security
+docker_image: heist-mission-doppelganger
+time_limit_minutes: 120
+par_time_minutes: 90
+stages: []

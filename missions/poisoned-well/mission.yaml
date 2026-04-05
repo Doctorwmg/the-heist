@@ -1,0 +1,14 @@
+slug: poisoned-well
+title: The Poisoned Well
+codename: "The Poisoned Well"
+description: "A healthcare AI is giving wrong drug interaction warnings. Find out why."
+difficulty: intermediate
+skills:
+  - bash
+  - sql
+  - python
+  - vector_db
+docker_image: heist-mission-poisoned-well
+time_limit_minutes: 120
+par_time_minutes: 75
+stages: []

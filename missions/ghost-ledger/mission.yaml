@@ -1,0 +1,13 @@
+slug: ghost-ledger
+title: The Ghost Ledger
+codename: "The Ghost Ledger"
+description: "A fintech startup's books don't balance. $2.3M missing. Trace it."
+difficulty: beginner
+skills:
+  - bash
+  - sql
+  - python
+docker_image: heist-mission-ghost-ledger
+time_limit_minutes: 120
+par_time_minutes: 60
+stages: []
