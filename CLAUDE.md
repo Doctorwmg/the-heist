@@ -130,7 +130,7 @@ Recruit (0 XP) → Operative (500) → Specialist (1500) → Ghost (4000) → Ar
 - Don't use Socket.io — use raw `ws` library for WebSocket (lighter, no overhead)
 
 ## Current Phase
-Phase 0: Foundation — initialise monorepo, set up Next.js + Fastify + Supabase + Docker base image
+Phase 1: Core Engine — container orchestration, WebSocket terminal bridge, Monaco editor, file explorer, mission panel UI, Supabase Auth flow
 
 ## Full Reference
 See `docs/ARCHITECTURE.md` for complete architecture details including:

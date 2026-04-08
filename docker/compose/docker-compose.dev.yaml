@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  test-container:
+    image: ubuntu:24.04
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    working_dir: /home/operative/workspace
+    labels:
+      the-heist-player: "true"
+      the-heist-user: "dev-user"
+      the-heist-mission: "test-mission"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1024M
+          pids: 256
+    network_mode: none

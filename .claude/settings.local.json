@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Bash(npx turbo:*)"
+      "Bash(npx turbo:*)",
+      "mcp__filesystem__directory_tree",
+      "Bash(node:*)"
     ]
   }
 }
