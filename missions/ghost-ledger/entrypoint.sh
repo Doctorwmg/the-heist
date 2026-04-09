@@ -1,6 +1,20 @@
 #!/bin/bash
 set -e
 
+# Configure pg_hba.conf to allow md5 password auth for local TCP connections
+# This lets the operative user connect as novapay_app/ghost_svc via psql -h localhost
+PG_HBA=$(find /etc/postgresql -name pg_hba.conf 2>/dev/null | head -1)
+if [ -n "$PG_HBA" ]; then
+    # Replace default peer/scram rules with md5 for local TCP and trust for unix socket
+    cat > "$PG_HBA" << 'HBA'
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+local   all             postgres                                trust
+local   all             all                                     trust
+host    all             all             127.0.0.1/32            md5
+host    all             all             ::1/128                 md5
+HBA
+fi
+
 # Start PostgreSQL
 echo "Starting PostgreSQL..."
 pg_ctlcluster 16 main start 2>/dev/null || service postgresql start

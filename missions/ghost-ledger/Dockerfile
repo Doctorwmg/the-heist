@@ -1,4 +1,4 @@
-FROM heist-mission-base:latest
+FROM the-heist/mission-base:latest
 
 # Switch to root for setup
 USER root
