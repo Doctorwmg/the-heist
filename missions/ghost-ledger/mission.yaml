@@ -1,13 +1,235 @@
 slug: ghost-ledger
 title: The Ghost Ledger
 codename: "The Ghost Ledger"
+campaign: the-heist
+campaign_order: 1
 description: "A fintech startup's books don't balance. $2.3M missing. Trace it."
+long_description: |
+  NovaPay Technologies processes $400M annually. Their Q4 reconciliation flagged
+  a $2.3 million discrepancy spread across thousands of transactions. Someone with
+  deep system access built this fraud to stay hidden. You have 2 hours to find
+  the money, trace the pattern, and build the case.
 difficulty: beginner
 skills:
   - bash
   - sql
   - python
-docker_image: heist-mission-ghost-ledger
+docker_image: heist-mission-ghost-ledger:latest
 time_limit_minutes: 120
 par_time_minutes: 60
-stages: []
+base_xp: 200
+
+stages:
+  # ================================================================
+  # Stage 1: Filesystem Forensics (Bash)
+  # ================================================================
+  - stage_id: "stage_1_recon"
+    title: "Recon the Environment"
+    order: 1
+    description: |
+      Explore NovaPay's server filesystem. Examine logs, config files, and scripts
+      to identify how the fraud was automated.
+    skill: bash
+    par_time_minutes: 20
+    par_lines: 15
+    base_points: 50
+    objectives:
+      - id: "find_ghost_user"
+        description: "Identify the ghost service account username"
+        validator:
+          type: answer_match
+          expected: "ghost_svc"
+          case_sensitive: true
+        hint:
+          text: "Check the hidden .env.local file in the app config directory for a separate database user."
+          available_after_minutes: 5
+
+      - id: "find_cron_script"
+        description: "Find the script that runs the fraudulent process"
+        validator:
+          type: answer_match
+          expected: "reconcile.sh"
+          case_sensitive: false
+        hint:
+          text: "Look at the crontab file in /novapay/scripts/ — which script runs at 02:00?"
+          available_after_minutes: 5
+
+      - id: "find_hidden_script"
+        description: "Find the hidden Python script that creates fraudulent transactions"
+        validator:
+          type: file_exists
+          path: "/novapay/scripts/.recon_adjust.py"
+          check_type: "player_found"
+        hint:
+          text: "The reconcile.sh script calls a hidden file. Check for dotfiles in the scripts directory with ls -la."
+          available_after_minutes: 8
+
+      - id: "find_hidden_logs"
+        description: "Locate the hidden adjustment logs"
+        validator:
+          type: command_output_match
+          command: ["ls", "-la", "/novapay/logs/"]
+          expected_pattern: "\\.adjust_"
+        hint:
+          text: "Run ls -la in /novapay/logs/ — look for hidden files starting with a dot."
+          available_after_minutes: 5
+
+    intel_drop:
+      file: "intel/stage_1_complete.md"
+      message: "Handler SPHINX has sent you new intel. Check your mission panel."
+
+  # ================================================================
+  # Stage 2: Follow the Money (SQL)
+  # ================================================================
+  - stage_id: "stage_2_sql"
+    title: "Follow the Money"
+    order: 2
+    description: |
+      Connect to the NovaPay database and trace the fraudulent transactions.
+      Find the pattern, identify the destination, and calculate the total.
+    skill: sql
+    par_time_minutes: 25
+    par_lines: 30
+    base_points: 80
+    objectives:
+      - id: "count_suspicious_txns"
+        description: "Find the total number of transactions created by the ghost service account"
+        validator:
+          type: query_result_match
+          query: "SELECT COUNT(*) FROM novapay.transactions WHERE created_by = (SELECT user_id FROM novapay.users WHERE username = 'ghost_svc');"
+          expected_value: "2541"
+          tolerance: 0
+        hint:
+          text: "Query the transactions table and JOIN with users to filter by the ghost_svc username. Count all matching rows."
+          available_after_minutes: 5
+
+      - id: "find_skim_total"
+        description: "Calculate the total amount diverted to Meridian Dynamics accounts"
+        validator:
+          type: answer_match
+          expected: "2314887.43"
+          case_sensitive: false
+        hint:
+          text: |
+            Filter transactions where: created_by is ghost_svc, txn_type is 'transfer',
+            and dest_account_id matches Meridian Dynamics accounts. SUM the amount column.
+          available_after_minutes: 8
+
+      - id: "find_meridian_accounts"
+        description: "Identify how many Meridian Dynamics shell company accounts received funds"
+        validator:
+          type: answer_match
+          expected: "3"
+          case_sensitive: false
+        hint:
+          text: "Search the accounts table for account names containing 'Meridian'. Count the distinct accounts."
+          available_after_minutes: 5
+
+      - id: "find_audit_gaps"
+        description: "Determine the approximate percentage of ghost_svc transactions that have audit log entries"
+        validator:
+          type: answer_match
+          expected: "5"
+          case_sensitive: false
+          tolerance_type: range
+          tolerance_range: [3, 7]
+        hint:
+          text: |
+            Compare the count of audit_log entries where user_id matches ghost_svc and
+            action is 'INSERT' against the total ghost_svc transactions. Express as a percentage.
+          available_after_minutes: 10
+
+    intel_drop:
+      file: "intel/stage_2_complete.md"
+      message: "SPHINX has identified the shell company. New intel available."
+
+  # ================================================================
+  # Stage 3: Build the Case (Python)
+  # ================================================================
+  - stage_id: "stage_3_report"
+    title: "Build the Case"
+    order: 3
+    description: |
+      Write a Python script to compile all evidence into a structured report.
+      Query the database, aggregate the findings, and output a JSON evidence file.
+    skill: python
+    par_time_minutes: 15
+    par_lines: 50
+    base_points: 70
+    objectives:
+      - id: "create_report_script"
+        description: "Create a Python script at /novapay/evidence_report.py"
+        validator:
+          type: file_exists
+          path: "/novapay/evidence_report.py"
+        hint:
+          text: "Create a Python file at /novapay/evidence_report.py. It should connect to PostgreSQL and query the fraud data."
+          available_after_minutes: 3
+
+      - id: "generate_report"
+        description: "Run your script to generate /novapay/evidence.json"
+        validator:
+          type: file_exists
+          path: "/novapay/evidence.json"
+        hint:
+          text: "Your script should output a JSON file at /novapay/evidence.json. Run it with: python3 /novapay/evidence_report.py"
+          available_after_minutes: 5
+
+      - id: "report_has_total"
+        description: "Evidence report must contain the correct total amount diverted"
+        validator:
+          type: json_schema_match
+          path: "/novapay/evidence.json"
+          schema:
+            required_fields:
+              - "total_diverted"
+              - "transaction_count"
+              - "suspect_accounts"
+            field_checks:
+              total_diverted:
+                type: number
+                min: 2314000
+                max: 2315000
+              transaction_count:
+                type: number
+                min: 840
+                max: 855
+        hint:
+          text: |
+            Your JSON report needs at minimum: total_diverted (number ~2314887.43),
+            transaction_count (number ~847), and suspect_accounts (array of Meridian accounts).
+          available_after_minutes: 8
+
+      - id: "report_has_timeline"
+        description: "Evidence report includes a timeline of fraudulent activity"
+        validator:
+          type: json_schema_match
+          path: "/novapay/evidence.json"
+          schema:
+            required_fields:
+              - "timeline"
+            field_checks:
+              timeline:
+                type: array
+                min_length: 1
+        hint:
+          text: "Add a 'timeline' array to your JSON with entries showing when fraud occurred — e.g., monthly summaries with dates and amounts."
+          available_after_minutes: 10
+
+    bonus_objectives:
+      - id: "bonus_identify_perpetrator"
+        description: "Include the perpetrator's identity in the report (bonus: +20 XP)"
+        validator:
+          type: json_schema_match
+          path: "/novapay/evidence.json"
+          schema:
+            required_fields:
+              - "perpetrator"
+        points: 20
+
+    intel_drop:
+      file: "intel/debrief.md"
+      message: "Mission complete. SPHINX has sent your debrief."
+
+# Rank XP for completing this mission
+completion_xp: 200

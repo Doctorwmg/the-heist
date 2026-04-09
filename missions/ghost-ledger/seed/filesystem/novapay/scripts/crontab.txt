@@ -1,0 +1,12 @@
+# NovaPay Scheduled Tasks
+# Installed by: ops@novapay.io
+# Last updated: 2025-04-02
+
+# Daily reconciliation at 02:00
+0 2 * * * /novapay/scripts/reconcile.sh
+
+# Health check every 15 minutes
+*/15 * * * * /novapay/scripts/healthcheck.sh >> /novapay/logs/health.log 2>&1
+
+# Weekly report generation (Mondays at 06:00)
+0 6 * * 1 /novapay/scripts/weekly_report.sh >> /novapay/logs/reports.log 2>&1

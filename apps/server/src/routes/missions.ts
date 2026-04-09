@@ -99,12 +99,8 @@ export async function missionRoutes(app: FastifyInstance) {
       // Run all validators for the stage objectives
       const results = await Promise.all(
         stage.objectives.map(async (objective) => {
-          const validator = { ...objective.validator };
-          // Inject submitted answer for answer_match validators
-          if (validator.type === 'answer_match' && answers?.[objective.id]) {
-            validator.config = { ...validator.config, submitted: answers[objective.id] };
-          }
-          const result = await validation.validate(containerId, validator);
+          const submitted = answers?.[objective.id] as string | undefined;
+          const result = await validation.validate(containerId, objective.validator, submitted);
           return { objectiveId: objective.id, ...result };
         }),
       );

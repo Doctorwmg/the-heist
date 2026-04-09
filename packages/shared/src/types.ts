@@ -83,7 +83,7 @@ export type ValidatorType =
 
 export interface Validator {
   type: ValidatorType;
-  config: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface Hint {

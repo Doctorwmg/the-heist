@@ -7,68 +7,78 @@ export class ValidationService {
   async validate(
     containerId: string,
     validator: Validator,
+    submitted?: string,
   ): Promise<ValidationResult> {
     switch (validator.type) {
       case 'command_output_match':
-        return this.validateCommandOutput(containerId, validator.config);
+        return this.validateCommandOutput(containerId, validator);
       case 'file_exists':
-        return this.validateFileExists(containerId, validator.config);
+        return this.validateFileExists(containerId, validator);
       case 'file_hash_match':
-        return this.validateFileHash(containerId, validator.config);
+        return this.validateFileHash(containerId, validator);
       case 'query_result_match':
-        return this.validateQueryResult(containerId, validator.config);
+        return this.validateQueryResult(containerId, validator);
       case 'answer_match':
-        return this.validateAnswerMatch(validator.config);
+        return this.validateAnswerMatch(validator, submitted);
       case 'file_permissions_match':
-        return this.validateFilePermissions(containerId, validator.config);
+        return this.validateFilePermissions(containerId, validator);
       case 'json_schema_match':
-        return this.validateJsonSchema(containerId, validator.config);
+        return this.validateJsonSchema(containerId, validator);
       case 'model_accuracy_threshold':
-        return this.validateModelAccuracy(containerId, validator.config);
+        return this.validateModelAccuracy(containerId, validator);
       default:
-        return { passed: false, feedback: `Unknown validator type: ${validator.type}` };
+        return { passed: false, feedback: `Unknown validator type: ${(validator as Validator).type}` };
     }
   }
 
   private async validateCommandOutput(
     containerId: string,
-    config: Record<string, unknown>,
+    validator: Validator,
   ): Promise<ValidationResult> {
-    const command = config.command as string;
-    const expected = config.expected as string;
-    const mode = (config.mode as string) ?? 'contains';
+    const command = validator.command as string[] | string;
+    const expected = validator.expected as string | undefined;
+    const expectedPattern = validator.expected_pattern as string | undefined;
+    const mode = (validator.mode as string) ?? 'contains';
 
-    const { stdout, exitCode } = await execution.execInContainer(containerId, [
-      'bash',
-      '-c',
-      command,
-    ]);
+    // Support both string and array command formats
+    const cmdArgs = Array.isArray(command)
+      ? command
+      : ['bash', '-c', command];
 
+    const { stdout, exitCode } = await execution.execInContainer(containerId, cmdArgs);
     const output = stdout.trim();
     let passed = false;
 
-    if (mode === 'exact') {
-      passed = output === expected;
-    } else if (mode === 'regex') {
-      passed = new RegExp(expected).test(output);
+    if (expectedPattern) {
+      // Regex pattern match
+      passed = new RegExp(expectedPattern).test(output);
+    } else if (expected) {
+      if (mode === 'exact') {
+        passed = output === expected;
+      } else if (mode === 'regex') {
+        passed = new RegExp(expected).test(output);
+      } else {
+        passed = output.includes(expected);
+      }
     } else {
-      passed = output.includes(expected);
+      // Just check exit code
+      passed = exitCode === 0;
     }
 
     return {
       passed,
       feedback: passed
         ? 'Command output matches expected result.'
-        : `Expected output ${mode === 'exact' ? 'to equal' : 'to contain'} "${expected}", got: "${output.slice(0, 200)}"`,
+        : `Output did not match expected pattern.`,
       details: { exitCode, output: output.slice(0, 500) },
     };
   }
 
   private async validateFileExists(
     containerId: string,
-    config: Record<string, unknown>,
+    validator: Validator,
   ): Promise<ValidationResult> {
-    const path = config.path as string;
+    const path = validator.path as string;
     const { exitCode } = await execution.execInContainer(containerId, [
       'test',
       '-f',
@@ -83,10 +93,10 @@ export class ValidationService {
 
   private async validateFileHash(
     containerId: string,
-    config: Record<string, unknown>,
+    validator: Validator,
   ): Promise<ValidationResult> {
-    const path = config.path as string;
-    const expectedHash = config.hash as string;
+    const path = validator.path as string;
+    const expectedHash = validator.hash as string;
     const { stdout } = await execution.execInContainer(containerId, [
       'sha256sum',
       path,
@@ -103,40 +113,63 @@ export class ValidationService {
 
   private async validateQueryResult(
     containerId: string,
-    config: Record<string, unknown>,
+    validator: Validator,
   ): Promise<ValidationResult> {
-    const query = config.query as string;
-    const expected = config.expected as string;
-    const database = (config.database as string) ?? 'mission_db';
+    const query = validator.query as string;
+    const expectedValue = (validator.expected_value ?? validator.expected) as string;
+    const database = (validator.database as string) ?? 'novapay';
+    const tolerance = (validator.tolerance as number) ?? 0;
 
     const { stdout, stderr } = await execution.execInContainer(containerId, [
       'psql',
-      '-d',
-      database,
-      '-t',
-      '-A',
-      '-c',
-      query,
+      '-U', 'novapay_app',
+      '-d', database,
+      '-t', '-A',
+      '-c', query,
     ]);
 
     const output = stdout.trim();
-    const passed = output === expected.trim();
+    let passed = false;
+
+    if (tolerance > 0) {
+      const actual = parseFloat(output);
+      const expected = parseFloat(expectedValue);
+      passed = !isNaN(actual) && !isNaN(expected) && Math.abs(actual - expected) <= tolerance;
+    } else {
+      passed = output === expectedValue.trim();
+    }
 
     return {
       passed,
       feedback: passed
         ? 'Query result matches expected output.'
-        : `Query returned "${output.slice(0, 200)}" but expected "${expected.slice(0, 200)}"`,
+        : `Query returned "${output.slice(0, 200)}" but expected "${expectedValue.slice(0, 200)}"`,
       details: { output: output.slice(0, 500), stderr: stderr.slice(0, 200) },
     };
   }
 
   private validateAnswerMatch(
-    config: Record<string, unknown>,
+    validator: Validator,
+    submitted?: string,
   ): Promise<ValidationResult> {
-    const expected = (config.expected as string).toLowerCase().trim();
-    const submitted = ((config.submitted as string) ?? '').toLowerCase().trim();
-    const passed = submitted === expected;
+    const expected = (validator.expected as string).trim();
+    const caseSensitive = validator.case_sensitive as boolean ?? false;
+    const toleranceType = validator.tolerance_type as string | undefined;
+    const toleranceRange = validator.tolerance_range as number[] | undefined;
+    const answer = (submitted ?? '').trim();
+
+    let passed = false;
+
+    if (toleranceType === 'range' && toleranceRange) {
+      // Numeric range check
+      const num = parseFloat(answer);
+      passed = !isNaN(num) && num >= toleranceRange[0] && num <= toleranceRange[1];
+    } else if (caseSensitive) {
+      passed = answer === expected;
+    } else {
+      passed = answer.toLowerCase() === expected.toLowerCase();
+    }
+
     return Promise.resolve({
       passed,
       feedback: passed ? 'Correct answer!' : 'Incorrect answer. Try again.',
@@ -145,14 +178,13 @@ export class ValidationService {
 
   private async validateFilePermissions(
     containerId: string,
-    config: Record<string, unknown>,
+    validator: Validator,
   ): Promise<ValidationResult> {
-    const path = config.path as string;
-    const expected = config.permissions as string;
+    const path = validator.path as string;
+    const expected = validator.permissions as string;
     const { stdout } = await execution.execInContainer(containerId, [
       'stat',
-      '-c',
-      '%a',
+      '-c', '%a',
       path,
     ]);
     const actual = stdout.trim();
@@ -167,28 +199,106 @@ export class ValidationService {
 
   private async validateJsonSchema(
     containerId: string,
-    config: Record<string, unknown>,
+    validator: Validator,
   ): Promise<ValidationResult> {
-    const path = config.path as string;
+    const path = validator.path as string;
+    const schema = validator.schema as {
+      required_fields?: string[];
+      field_checks?: Record<string, {
+        type?: string;
+        min?: number;
+        max?: number;
+        min_length?: number;
+      }>;
+    } | undefined;
+
+    // Build a Python validation script that checks the JSON structure
+    const checks: string[] = [
+      `import json, sys`,
+      `try:`,
+      `    data = json.load(open("${path}"))`,
+      `except Exception as e:`,
+      `    print(f"INVALID_JSON: {e}")`,
+      `    sys.exit(1)`,
+    ];
+
+    if (schema?.required_fields) {
+      for (const field of schema.required_fields) {
+        checks.push(`if "${field}" not in data:`);
+        checks.push(`    print("MISSING_FIELD: ${field}")`);
+        checks.push(`    sys.exit(1)`);
+      }
+    }
+
+    if (schema?.field_checks) {
+      for (const [field, check] of Object.entries(schema.field_checks)) {
+        if (check.type === 'number') {
+          checks.push(`val = data.get("${field}")`);
+          checks.push(`if not isinstance(val, (int, float)):`);
+          checks.push(`    print("TYPE_ERROR: ${field} must be a number")`);
+          checks.push(`    sys.exit(1)`);
+          if (check.min !== undefined) {
+            checks.push(`if val < ${check.min}:`);
+            checks.push(`    print("RANGE_ERROR: ${field} too low")`);
+            checks.push(`    sys.exit(1)`);
+          }
+          if (check.max !== undefined) {
+            checks.push(`if val > ${check.max}:`);
+            checks.push(`    print("RANGE_ERROR: ${field} too high")`);
+            checks.push(`    sys.exit(1)`);
+          }
+        }
+        if (check.type === 'array') {
+          checks.push(`val = data.get("${field}")`);
+          checks.push(`if not isinstance(val, list):`);
+          checks.push(`    print("TYPE_ERROR: ${field} must be an array")`);
+          checks.push(`    sys.exit(1)`);
+          if (check.min_length !== undefined) {
+            checks.push(`if len(val) < ${check.min_length}:`);
+            checks.push(`    print("LENGTH_ERROR: ${field} too short")`);
+            checks.push(`    sys.exit(1)`);
+          }
+        }
+      }
+    }
+
+    checks.push(`print("VALID")`);
+
+    const script = checks.join('\n');
     const { stdout, exitCode } = await execution.execInContainer(containerId, [
-      'python3',
-      '-c',
-      `import json; json.load(open("${path}"))`,
+      'python3', '-c', script,
     ]);
-    void stdout;
-    const passed = exitCode === 0;
-    return {
-      passed,
-      feedback: passed ? 'Valid JSON file.' : 'Invalid JSON file.',
-    };
+
+    const output = stdout.trim();
+    const passed = exitCode === 0 && output === 'VALID';
+
+    let feedback = 'Valid JSON file with correct structure.';
+    if (!passed) {
+      if (output.startsWith('INVALID_JSON')) {
+        feedback = 'File is not valid JSON.';
+      } else if (output.startsWith('MISSING_FIELD')) {
+        const field = output.split(': ')[1];
+        feedback = `Missing required field: "${field}" in your JSON report.`;
+      } else if (output.startsWith('TYPE_ERROR')) {
+        feedback = output.split(': ').slice(1).join(': ');
+      } else if (output.startsWith('RANGE_ERROR')) {
+        feedback = output.split(': ').slice(1).join(': ');
+      } else if (output.startsWith('LENGTH_ERROR')) {
+        feedback = output.split(': ').slice(1).join(': ');
+      } else {
+        feedback = 'JSON validation failed.';
+      }
+    }
+
+    return { passed, feedback };
   }
 
   private async validateModelAccuracy(
     containerId: string,
-    config: Record<string, unknown>,
+    validator: Validator,
   ): Promise<ValidationResult> {
-    const script = config.eval_script as string;
-    const threshold = config.threshold as number;
+    const script = validator.eval_script as string;
+    const threshold = validator.threshold as number;
 
     const { stdout, stderr, exitCode } = await execution.execInContainer(containerId, [
       'python3',

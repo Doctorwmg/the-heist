@@ -1,0 +1,59 @@
+{
+  "date": "2025-04-01",
+  "transactions": [
+    {
+      "txn_ref": "TXN-ACB10CDC48C6",
+      "source": 1020,
+      "dest": 1043,
+      "amount": 334.84,
+      "type": "fee",
+      "status": "completed",
+      "timestamp": "2025-04-01T08:42:05+00:00"
+    },
+    {
+      "txn_ref": "TXN-1D694DFD7DB6",
+      "source": 1001,
+      "dest": 1011,
+      "amount": 890.11,
+      "type": "adjustment",
+      "status": "completed",
+      "timestamp": "2025-04-01T09:50:38+00:00"
+    },
+    {
+      "txn_ref": "TXN-479E589215A3",
+      "source": 1020,
+      "dest": 1001,
+      "amount": 4120.78,
+      "type": "payment",
+      "status": "completed",
+      "timestamp": "2025-04-01T14:12:40+00:00"
+    },
+    {
+      "txn_ref": "TXN-1EFD7495DFF3",
+      "source": 1002,
+      "dest": 1001,
+      "amount": 20940.61,
+      "type": "payment",
+      "status": "completed",
+      "timestamp": "2025-04-01T16:54:34+00:00"
+    },
+    {
+      "txn_ref": "TXN-02641F2B87F5",
+      "source": 1001,
+      "dest": 1037,
+      "amount": 14678.72,
+      "type": "transfer",
+      "status": "completed",
+      "timestamp": "2025-04-01T12:36:41+00:00"
+    },
+    {
+      "txn_ref": "TXN-831C0894F122",
+      "source": 1007,
+      "dest": 1001,
+      "amount": 8675.08,
+      "type": "payment",
+      "status": "completed",
+      "timestamp": "2025-04-01T13:14:01+00:00"
+    }
+  ]
+}
