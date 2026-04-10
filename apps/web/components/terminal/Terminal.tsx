@@ -10,6 +10,14 @@ interface TerminalProps {
   onDisconnect?: () => void;
 }
 
+const BOOT_LINES = [
+  '> ESTABLISHING SECURE CONNECTION...',
+  '> AUTHENTICATING CREDENTIALS...',
+  '> LOADING MISSION ENVIRONMENT...',
+  '> ACCESS GRANTED',
+  '',
+];
+
 export default function Terminal({ containerId, token, onConnect, onDisconnect }: TerminalProps) {
   const termRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<import('@xterm/xterm').Terminal | null>(null);
@@ -17,10 +25,21 @@ export default function Terminal({ containerId, token, onConnect, onDisconnect }
   const fitAddonRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const { setConnectionStatus } = useTerminalStore();
+  const { connectionStatus, setConnectionStatus } = useTerminalStore();
+  const bootCompleteRef = useRef(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   const wsUrl = apiUrl.replace(/^http/, 'ws');
+
+  const runBootSequence = useCallback(async (term: import('@xterm/xterm').Terminal) => {
+    if (bootCompleteRef.current) return;
+    bootCompleteRef.current = true;
+
+    for (const line of BOOT_LINES) {
+      term.writeln(`\x1b[33m${line}\x1b[0m`);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }, []);
 
   const connect = useCallback(async () => {
     if (!termRef.current || !containerId || !token) return;
@@ -28,29 +47,38 @@ export default function Terminal({ containerId, token, onConnect, onDisconnect }
     setConnectionStatus('connecting');
     setReconnecting(false);
 
-    // Dynamically import xterm (client-side only)
     const { Terminal: XTerm } = await import('@xterm/xterm');
     const { FitAddon } = await import('@xterm/addon-fit');
 
-    // Only create terminal once
     if (!xtermRef.current) {
       const term = new XTerm({
         cursorBlink: true,
+        cursorStyle: 'block',
         fontSize: 14,
-        fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+        fontFamily: "'Fira Code', 'Droid Sans Mono', monospace",
         theme: {
-          background: '#0a0a0a',
-          foreground: '#e4e4e7',
-          cursor: '#10b981',
-          selectionBackground: '#27272a',
-          black: '#09090b',
+          background: '#0d0d0d',
+          foreground: '#d4a843',
+          cursor: '#d4a843',
+          cursorAccent: '#0d0d0d',
+          selectionBackground: 'rgba(212, 168, 67, 0.2)',
+          selectionForeground: '#f0f0f0',
+          black: '#0a0a0a',
           red: '#ef4444',
-          green: '#22c55e',
-          yellow: '#eab308',
-          blue: '#3b82f6',
+          green: '#4ade80',
+          yellow: '#d4a843',
+          blue: '#60a5fa',
           magenta: '#a855f7',
           cyan: '#06b6d4',
-          white: '#e4e4e7',
+          white: '#f0f0f0',
+          brightBlack: '#888888',
+          brightRed: '#ef4444',
+          brightGreen: '#4ade80',
+          brightYellow: '#d4a843',
+          brightBlue: '#60a5fa',
+          brightMagenta: '#a855f7',
+          brightCyan: '#06b6d4',
+          brightWhite: '#f0f0f0',
         },
         scrollback: 1000,
         allowProposedApi: true,
@@ -64,12 +92,13 @@ export default function Terminal({ containerId, token, onConnect, onDisconnect }
 
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
+
+      runBootSequence(term);
     }
 
     const term = xtermRef.current;
     const fitAddon = fitAddonRef.current!;
 
-    // Close any existing connection
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -99,7 +128,6 @@ export default function Terminal({ containerId, token, onConnect, onDisconnect }
       setConnectionStatus('disconnected');
       onDisconnect?.();
 
-      // Auto-reconnect after 3 seconds
       setReconnecting(true);
       reconnectTimeoutRef.current = setTimeout(() => {
         connect();
@@ -110,34 +138,29 @@ export default function Terminal({ containerId, token, onConnect, onDisconnect }
       setConnectionStatus('error');
     };
 
-    // Terminal input → WebSocket
     const dataDisposable = term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(data);
       }
     });
 
-    // Handle resize
     const resizeDisposable = term.onResize(({ cols, rows }) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize', cols, rows }));
       }
     });
 
-    // Fit on window resize
     const handleWindowResize = () => fitAddon.fit();
     window.addEventListener('resize', handleWindowResize);
 
-    // Cleanup function stored for reconnect
     const cleanup = () => {
       dataDisposable.dispose();
       resizeDisposable.dispose();
       window.removeEventListener('resize', handleWindowResize);
     };
 
-    // Store cleanup for later
     ws.addEventListener('close', cleanup, { once: true });
-  }, [containerId, token, wsUrl, onConnect, onDisconnect, setConnectionStatus]);
+  }, [containerId, token, wsUrl, onConnect, onDisconnect, setConnectionStatus, runBootSequence]);
 
   useEffect(() => {
     connect();
@@ -156,7 +179,6 @@ export default function Terminal({ containerId, token, onConnect, onDisconnect }
     };
   }, [connect]);
 
-  // Re-fit when the container div resizes
   useEffect(() => {
     const el = termRef.current;
     if (!el || !fitAddonRef.current) return;
@@ -168,17 +190,37 @@ export default function Terminal({ containerId, token, onConnect, onDisconnect }
     return () => observer.disconnect();
   }, []);
 
+  const statusDotClass =
+    connectionStatus === 'connected' ? 'status-dot--connected' :
+    connectionStatus === 'connecting' ? 'status-dot--connecting' :
+    'status-dot--disconnected';
+
   return (
-    <div className="relative h-full w-full">
-      <div ref={termRef} className="h-full w-full" />
-      {reconnecting && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-          <div className="text-center">
-            <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent mx-auto" />
-            <p className="text-sm text-gray-400">Reconnecting...</p>
-          </div>
+    <div className="relative flex h-full w-full flex-col bg-[var(--terminal-bg)] border border-[var(--border)] focus-within:border-[var(--border-active)] focus-within:shadow-[0_0_8px_var(--accent-glow)] transition-all">
+      {/* Header bar */}
+      <div className="panel-header">
+        <span>Terminal</span>
+        <div className="flex items-center gap-2">
+          <span className={`status-dot ${statusDotClass}`} />
+          <span className="text-[10px]">
+            {connectionStatus === 'connected' ? 'connected' : connectionStatus === 'connecting' ? 'connecting' : 'disconnected'}
+          </span>
         </div>
-      )}
+      </div>
+
+      {/* Terminal content */}
+      <div className="relative flex-1 overflow-hidden">
+        <div ref={termRef} className="h-full w-full" />
+        <div className="crt-overlay" />
+        {reconnecting && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
+            <div className="text-center">
+              <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent-primary)] border-t-transparent mx-auto" />
+              <p className="text-sm text-[var(--text-secondary)] font-mono">Reconnecting...</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

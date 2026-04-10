@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '@/stores/editorStore';
 
 interface FileTab {
@@ -47,11 +47,43 @@ export function detectLanguage(filename: string): string {
   return EXTENSION_LANGUAGE_MAP[ext] ?? 'plaintext';
 }
 
+/** Custom Monaco theme matching THE HEIST palette */
+function defineHeistTheme(monaco: typeof import('monaco-editor')) {
+  monaco.editor.defineTheme('heist-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'comment', foreground: '555555', fontStyle: 'italic' },
+      { token: 'keyword', foreground: 'd4a843' },
+      { token: 'string', foreground: '4ade80' },
+      { token: 'number', foreground: 'f59e0b' },
+      { token: 'type', foreground: '60a5fa' },
+      { token: 'function', foreground: 'f0f0f0' },
+      { token: 'variable', foreground: 'e0e0e0' },
+      { token: 'operator', foreground: 'd4a843' },
+    ],
+    colors: {
+      'editor.background': '#0a0a0a',
+      'editor.foreground': '#f0f0f0',
+      'editor.lineHighlightBackground': '#111111',
+      'editor.selectionBackground': '#2a2a2a',
+      'editorCursor.foreground': '#d4a843',
+      'editorLineNumber.foreground': '#555555',
+      'editorLineNumber.activeForeground': '#d4a843',
+      'editor.inactiveSelectionBackground': '#1a1a1a',
+      'editorIndentGuide.background': '#1a1a1a',
+      'editorIndentGuide.activeBackground': '#2a2a2a',
+      'editorWidget.background': '#111111',
+      'editorWidget.border': '#2a2a2a',
+    },
+  });
+}
+
 export default function CodeEditor({ files, onSave }: CodeEditorProps) {
   const { openFiles, activeFilePath, openFile, closeFile, setActiveFile, updateFileContent } =
     useEditorStore();
+  const themeDefinedRef = useRef(false);
 
-  // Sync incoming files into the store
   useEffect(() => {
     for (const f of files) {
       openFile({ path: f.path, content: f.content, language: f.language, isDirty: false });
@@ -68,7 +100,6 @@ export default function CodeEditor({ files, onSave }: CodeEditorProps) {
     [openFiles, onSave],
   );
 
-  // Keyboard shortcut: Ctrl/Cmd+S
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -83,21 +114,26 @@ export default function CodeEditor({ files, onSave }: CodeEditorProps) {
   const activeFile = openFiles.find((f) => f.path === activeFilePath);
 
   return (
-    <div className="flex h-full flex-col bg-[#0a0a0a]">
+    <div className="flex h-full flex-col bg-[var(--bg-primary)] border border-[var(--border)]">
+      {/* Header bar */}
+      <div className="panel-header">
+        <span>Editor</span>
+      </div>
+
       {/* Tab bar */}
-      <div className="flex min-h-[36px] items-center overflow-x-auto border-b border-gray-800 bg-gray-950">
+      <div className="flex min-h-[32px] items-center overflow-x-auto border-b border-[var(--border)] bg-[var(--bg-secondary)]">
         {openFiles.map((file) => (
           <button
             key={file.path}
             onClick={() => setActiveFile(file.path)}
-            className={`group flex items-center gap-1 border-r border-gray-800 px-3 py-1.5 text-xs ${
+            className={`group flex items-center gap-1.5 border-r border-[var(--border)] px-3 py-1.5 text-xs font-mono transition-colors ${
               file.path === activeFilePath
-                ? 'bg-[#0a0a0a] text-gray-100'
-                : 'text-gray-400 hover:text-gray-200'
+                ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] border-b-2 border-b-[var(--accent-primary)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
             }`}
           >
             {file.isDirty && (
-              <span className="mr-0.5 inline-block h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent-primary)]" />
             )}
             <span>{file.path.split('/').pop()}</span>
             <span
@@ -105,7 +141,7 @@ export default function CodeEditor({ files, onSave }: CodeEditorProps) {
                 e.stopPropagation();
                 closeFile(file.path);
               }}
-              className="ml-1 hidden rounded p-0.5 text-gray-500 hover:bg-gray-700 hover:text-gray-300 group-hover:inline-block"
+              className="ml-1 hidden rounded p-0.5 text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] group-hover:inline-block"
             >
               x
             </span>
@@ -121,10 +157,11 @@ export default function CodeEditor({ files, onSave }: CodeEditorProps) {
             content={activeFile.content}
             language={activeFile.language}
             onChange={(value) => updateFileContent(activeFile.path, value)}
+            themeDefinedRef={themeDefinedRef}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-gray-500">
-            <p>Select a file to edit</p>
+          <div className="flex h-full items-center justify-center text-[var(--text-secondary)]">
+            <p className="font-mono text-sm">Select a file to edit</p>
           </div>
         )}
       </div>
@@ -136,12 +173,13 @@ function MonacoWrapper({
   content,
   language,
   onChange,
+  themeDefinedRef,
 }: {
   content: string;
   language: string;
   onChange: (value: string) => void;
+  themeDefinedRef: React.MutableRefObject<boolean>;
 }) {
-  // Lazy-load Monaco to avoid SSR issues
   const MonacoEditor = require('@monaco-editor/react').default;
 
   return (
@@ -152,10 +190,16 @@ function MonacoWrapper({
       onChange={(value: string | undefined) => {
         if (value !== undefined) onChange(value);
       }}
-      theme="vs-dark"
+      theme="heist-dark"
+      beforeMount={(monaco: typeof import('monaco-editor')) => {
+        if (!themeDefinedRef.current) {
+          defineHeistTheme(monaco);
+          themeDefinedRef.current = true;
+        }
+      }}
       options={{
         fontSize: 14,
-        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontFamily: "'Fira Code', 'Droid Sans Mono', monospace",
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         wordWrap: 'on',

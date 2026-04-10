@@ -32,40 +32,50 @@ export default function MissionPanel({
   const totalStages = stages.length;
 
   return (
-    <div className="flex h-full flex-col bg-gray-950">
+    <div className="flex h-full flex-col bg-[var(--bg-primary)]">
       {/* Mission header */}
-      <div className="border-b border-gray-800 px-3 py-2">
-        <h2 className="text-sm font-bold text-gray-100 truncate">{mission.title}</h2>
-        <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+      <div className="border-b border-[var(--border)] px-3 py-2">
+        <h2 className="font-display text-sm tracking-wider text-[var(--accent-primary)] truncate uppercase">
+          {mission.title}
+        </h2>
+        <div className="mt-1 flex items-center gap-3 text-xs font-mono text-[var(--text-secondary)]">
           <span>
             Stage {stageIndex + 1}/{totalStages}
           </span>
           <span>{formatTime(elapsedTime)}</span>
         </div>
-        {/* Progress bar */}
-        <div className="mt-2 h-1 rounded-full bg-gray-800">
-          <div
-            className="h-full rounded-full bg-emerald-500 transition-all"
-            style={{ width: `${((stageIndex + 1) / totalStages) * 100}%` }}
-          />
+        {/* Segmented stage progress bar */}
+        <div className="mt-2 flex gap-1">
+          {stages.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-tactical transition-all ${
+                i < stageIndex
+                  ? 'bg-[var(--accent-primary)]'
+                  : i === stageIndex
+                    ? 'bg-[var(--accent-primary)] animate-glow-pulse'
+                    : 'bg-[var(--bg-tertiary)]'
+              }`}
+            />
+          ))}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-800">
+      <div className="flex border-b border-[var(--border)]">
         {(['briefing', 'objectives', 'hints', 'intel'] as Tab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 px-2 py-1.5 text-xs font-medium capitalize ${
+            className={`flex-1 px-2 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors ${
               activeTab === tab
-                ? 'border-b-2 border-emerald-400 text-emerald-400'
-                : 'text-gray-500 hover:text-gray-300'
+                ? 'border-b-2 border-[var(--accent-primary)] text-[var(--accent-primary)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
             {tab}
             {tab === 'intel' && intelDrops.length > 0 && (
-              <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)] animate-badge-pulse" />
             )}
           </button>
         ))}
@@ -89,13 +99,13 @@ export default function MissionPanel({
       </div>
 
       {/* Submit button */}
-      <div className="border-t border-gray-800 p-3">
+      <div className="border-t border-[var(--border)] p-3">
         <button
           onClick={onSubmitStage}
           disabled={submitting}
-          className="w-full rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="btn-amber w-full text-sm"
         >
-          {submitting ? 'Validating...' : 'Submit Stage'}
+          {submitting ? 'VALIDATING...' : 'SUBMIT STAGE'}
         </button>
       </div>
     </div>
@@ -104,10 +114,17 @@ export default function MissionPanel({
 
 function BriefingTab({ briefing }: { briefing: string }) {
   return (
-    <div className="prose prose-invert prose-sm max-w-none">
-      <div className="whitespace-pre-wrap text-sm text-gray-300 leading-relaxed">
-        {briefing}
+    <div className="relative">
+      {/* Classified stamp */}
+      <div className="classified-stamp">CLASSIFIED</div>
+
+      {/* Briefing content with classified border */}
+      <div className="border border-[var(--classified-red)] rounded-tactical p-3 bg-[var(--classified-bg)]">
+        <div className="whitespace-pre-wrap text-sm text-[var(--text-primary)] leading-relaxed font-mono">
+          {briefing}
+        </div>
       </div>
+      <div className="crt-overlay rounded-tactical" />
     </div>
   );
 }
@@ -124,25 +141,29 @@ function ObjectivesTab({
       {objectives.map((obj) => {
         const done = completedObjectives.has(obj.id);
         return (
-          <li key={obj.id} className="flex items-start gap-2">
+          <li key={obj.id} className={`flex items-start gap-2 animate-fade-in`}>
             <span
-              className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[10px] ${
+              className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-tactical border transition-all ${
                 done
-                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                  : 'border-gray-600 text-transparent'
+                  ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] text-black'
+                  : 'border-[var(--text-secondary)] text-transparent'
               }`}
             >
-              {done ? '✓' : ''}
+              {done && (
+                <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 6l3 3 5-5" strokeDasharray="24" className="animate-check-draw" />
+                </svg>
+              )}
             </span>
             <div>
-              <p className={`text-sm ${done ? 'text-gray-400 line-through' : 'text-gray-200'}`}>
+              <p className={`text-sm font-mono ${done ? 'text-[var(--text-secondary)] line-through' : 'text-[var(--text-primary)]'}`}>
                 {obj.title}
               </p>
-              <p className="text-xs text-gray-500">{obj.description}</p>
+              <p className="text-xs text-[var(--text-secondary)]">{obj.description}</p>
               <div className="mt-0.5 flex gap-2 text-xs">
-                <span className="text-gray-600">{obj.points} pts</span>
+                <span className="text-[var(--text-secondary)]">{obj.points} pts</span>
                 {obj.is_bonus && (
-                  <span className="text-amber-500">bonus</span>
+                  <span className="text-[var(--accent-primary)]">BONUS</span>
                 )}
               </div>
             </div>
@@ -163,7 +184,7 @@ function HintsTab({
   const elapsedMinutes = elapsedTime / 60;
 
   if (hints.length === 0) {
-    return <p className="text-sm text-gray-500">No hints available for this stage.</p>;
+    return <p className="text-sm text-[var(--text-secondary)] font-mono">No hints available for this stage.</p>;
   }
 
   return (
@@ -172,12 +193,17 @@ function HintsTab({
         const unlocked = elapsedMinutes >= hint.unlock_after_minutes;
         const remaining = Math.ceil(hint.unlock_after_minutes - elapsedMinutes);
         return (
-          <li key={i} className="rounded-md border border-gray-800 p-2">
+          <li key={i} className="rounded-tactical border border-[var(--border)] p-3">
             {unlocked ? (
-              <p className="text-sm text-gray-300">{hint.text}</p>
+              <p className="text-sm text-[var(--text-primary)] font-mono animate-fade-in">
+                {hint.text}
+              </p>
             ) : (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>🔒</span>
+              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)] font-mono">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
                 <span>Unlocks in {remaining}m</span>
               </div>
             )}
@@ -191,7 +217,7 @@ function HintsTab({
 function IntelTab({ intelDrops }: { intelDrops: IntelDrop[] }) {
   if (intelDrops.length === 0) {
     return (
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-[var(--text-secondary)] font-mono">
         Complete stages to receive intel drops.
       </p>
     );
@@ -200,12 +226,14 @@ function IntelTab({ intelDrops }: { intelDrops: IntelDrop[] }) {
   return (
     <div className="space-y-3">
       {intelDrops.map((drop, i) => (
-        <div key={i} className="rounded-md border border-gray-800 p-2">
-          <div className="mb-1 flex items-center gap-1 text-xs text-emerald-400">
-            <span>📎</span>
-            <span>{drop.filename}</span>
+        <div key={i} className="rounded-tactical border border-[var(--border)] p-3 animate-intel-slide">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="inline-block rounded-tactical bg-[var(--accent-primary)] px-2 py-0.5 text-[10px] font-bold text-black uppercase tracking-wider animate-badge-pulse">
+              New Intel
+            </span>
+            <span className="text-xs font-mono text-[var(--accent-primary)]">{drop.filename}</span>
           </div>
-          <div className="whitespace-pre-wrap text-sm text-gray-300">
+          <div className="whitespace-pre-wrap text-sm text-[var(--text-primary)] font-mono">
             {drop.content}
           </div>
         </div>

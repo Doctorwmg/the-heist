@@ -18,23 +18,22 @@ interface FileExplorerProps {
 }
 
 const FILE_ICONS: Record<string, string> = {
-  py: '🐍',
-  sql: '🗃',
-  sh: '⚡',
-  md: '📝',
+  py: 'py',
+  sql: 'sql',
+  sh: 'sh',
+  md: 'md',
   json: '{}',
-  yaml: '⚙',
-  yml: '⚙',
-  txt: '📄',
-  csv: '📊',
-  dockerfile: '🐳',
+  yaml: 'yml',
+  yml: 'yml',
+  txt: 'txt',
+  csv: 'csv',
+  dockerfile: 'dk',
 };
 
-function getFileIcon(name: string, type: string): string {
-  if (type === 'directory') return '📁';
+function getFileLabel(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (name.toLowerCase() === 'dockerfile') return '🐳';
-  return FILE_ICONS[ext] ?? '📄';
+  if (name.toLowerCase() === 'dockerfile') return 'dk';
+  return FILE_ICONS[ext] ?? '--';
 }
 
 export default function FileExplorer({
@@ -47,12 +46,13 @@ export default function FileExplorer({
   const [showHidden, setShowHidden] = useState(false);
 
   return (
-    <div className="flex h-full flex-col text-sm">
-      <div className="flex items-center justify-between border-b border-gray-800 px-3 py-2">
-        <span className="font-medium text-gray-300">Files</span>
+    <div className="flex h-full flex-col text-sm bg-[var(--bg-primary)] border border-[var(--border)]">
+      {/* Header */}
+      <div className="panel-header">
+        <span>Files</span>
         <button
           onClick={() => setShowHidden(!showHidden)}
-          className={`text-xs ${showHidden ? 'text-emerald-400' : 'text-gray-500'} hover:text-gray-300`}
+          className={`text-[10px] font-mono transition-colors ${showHidden ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'} hover:text-[var(--text-primary)]`}
           title="Toggle hidden files"
         >
           .*
@@ -124,7 +124,6 @@ function DirectoryNode({
     }
   }, [expanded, loaded, loadEntries]);
 
-  // Refresh on trigger change
   useEffect(() => {
     if (expanded && loaded && refreshTrigger) {
       loadEntries();
@@ -144,14 +143,14 @@ function DirectoryNode({
     <div>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-gray-300 hover:bg-gray-800"
+        className="flex w-full items-center gap-1.5 rounded-tactical px-1 py-0.5 text-left font-mono text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
-        <span className="w-4 text-center text-[10px] text-gray-500">
-          {expanded ? '▼' : '▶'}
+        <span className={`w-3 text-center text-[10px] transition-transform ${expanded ? '' : '-rotate-90'} text-[var(--accent-primary)]`}>
+          &#9662;
         </span>
-        <span>{getFileIcon(name, 'directory')}</span>
-        <span className="truncate">{name}</span>
+        <span className="text-[var(--accent-primary)] text-[10px] font-mono w-5 text-center opacity-60">dir</span>
+        <span className="truncate text-xs">{name}</span>
       </button>
       {expanded && (
         <div>
@@ -172,18 +171,18 @@ function DirectoryNode({
               <button
                 key={entry.name}
                 onClick={() => onFileSelect(`${path}/${entry.name}`)}
-                className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+                className="flex w-full items-center gap-1.5 rounded-tactical px-1 py-0.5 text-left font-mono text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--accent-primary)] transition-colors"
                 style={{ paddingLeft: `${(depth + 1) * 12 + 4}px` }}
               >
-                <span className="w-4" />
-                <span>{getFileIcon(entry.name, 'file')}</span>
-                <span className="truncate">{entry.name}</span>
+                <span className="w-3" />
+                <span className="text-[10px] font-mono w-5 text-center opacity-40">{getFileLabel(entry.name)}</span>
+                <span className={`truncate text-xs ${entry.name.startsWith('.') ? 'opacity-50' : ''}`}>{entry.name}</span>
               </button>
             ),
           )}
           {loaded && sortedEntries.length === 0 && (
             <div
-              className="px-1 py-0.5 text-gray-600 italic"
+              className="px-1 py-0.5 text-[var(--text-secondary)] italic text-xs font-mono"
               style={{ paddingLeft: `${(depth + 1) * 12 + 4}px` }}
             >
               empty

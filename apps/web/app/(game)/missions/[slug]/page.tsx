@@ -27,6 +27,7 @@ export default function MissionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [stageComplete, setStageComplete] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const { completedObjectives, completeObjective, reset: resetMission } = useMissionStore();
   const { openFile, reset: resetEditor } = useEditorStore();
@@ -94,7 +95,6 @@ export default function MissionPage() {
 
   const currentStage = stages[currentStageIndex] ?? null;
 
-  // Handle file selection from file explorer
   const handleFileSelect = useCallback(
     async (path: string) => {
       if (!containerId || !token) return;
@@ -122,7 +122,6 @@ export default function MissionPage() {
     [containerId, token, openFile],
   );
 
-  // Handle file save
   const handleSave = useCallback(
     async (path: string, content: string) => {
       if (!containerId || !token) return;
@@ -141,7 +140,6 @@ export default function MissionPage() {
     [containerId, token],
   );
 
-  // Handle stage submission
   const handleSubmitStage = useCallback(async () => {
     if (!currentStage || !containerId || !token) return;
 
@@ -166,23 +164,26 @@ export default function MissionPage() {
 
       const data = await res.json();
 
-      // Mark completed objectives
       for (const result of data.results) {
         if (result.passed) {
           completeObjective(result.objectiveId);
         }
       }
 
-      // If all passed, advance to next stage
       if (data.allPassed) {
         if (data.intelDrop) {
           setIntelDrops((prev) => [...prev, ...(data.intelDrop as IntelDrop[])]);
         }
 
-        if (currentStageIndex < stages.length - 1) {
-          setCurrentStageIndex((i) => i + 1);
-          setElapsedTime(0);
-        }
+        // Show stage complete overlay
+        setStageComplete(true);
+        setTimeout(() => {
+          setStageComplete(false);
+          if (currentStageIndex < stages.length - 1) {
+            setCurrentStageIndex((i) => i + 1);
+            setElapsedTime(0);
+          }
+        }, 2000);
       }
     } catch {
       setError('Failed to submit');
@@ -191,24 +192,31 @@ export default function MissionPage() {
     }
   }, [currentStage, containerId, token, slug, completeObjective, currentStageIndex, stages.length]);
 
+  // Format elapsed time for top bar
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  };
+
   if (authLoading) {
     return (
-      <main className="flex h-screen items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+      <main className="flex h-screen items-center justify-center bg-[var(--bg-primary)]">
+        <p className="text-[var(--text-secondary)] font-mono">Loading...</p>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-red-400">{error}</p>
+      <main className="flex h-screen flex-col items-center justify-center gap-4 bg-[var(--bg-primary)]">
+        <p className="text-[var(--danger)] font-mono">{error}</p>
         <button
           onClick={() => {
             setError(null);
             setContainerId(null);
           }}
-          className="text-sm text-emerald-400 hover:text-emerald-300"
+          className="text-sm text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] font-mono"
         >
           Retry
         </button>
@@ -218,22 +226,47 @@ export default function MissionPage() {
 
   if (!mission || !currentStage || !containerId || !token) {
     return (
-      <main className="flex h-screen items-center justify-center">
+      <main className="flex h-screen items-center justify-center bg-[var(--bg-primary)]">
         <div className="text-center">
-          <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent mx-auto" />
-          <p className="text-gray-400">Starting mission...</p>
+          <div className="mb-3 h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent-primary)] border-t-transparent mx-auto" />
+          <p className="text-[var(--text-secondary)] font-mono text-sm">INITIALIZING MISSION...</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="h-screen overflow-hidden">
-      <PanelGroup orientation="horizontal" className="h-full">
+    <main className="relative h-screen overflow-hidden bg-[var(--bg-primary)]">
+      {/* Top bar */}
+      <div className="flex h-10 items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4">
+        <div className="flex items-center gap-4">
+          <h1 className="font-display text-sm tracking-wider text-[var(--accent-primary)] uppercase">
+            {mission.codename ?? mission.title}
+          </h1>
+          <span className="text-xs font-mono text-[var(--text-secondary)]">
+            Stage {currentStageIndex + 1}/{stages.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-sm text-[var(--text-primary)] tabular-nums">
+            {formatTime(elapsedTime)}
+          </span>
+          <button
+            onClick={handleSubmitStage}
+            disabled={submitting}
+            className="btn-amber text-xs py-1.5 px-4"
+          >
+            {submitting ? 'VALIDATING...' : 'SUBMIT STAGE'}
+          </button>
+        </div>
+      </div>
+
+      {/* Three-pane layout */}
+      <PanelGroup orientation="horizontal" className="h-[calc(100vh-40px)]">
         {/* Left panel: File Explorer + Mission Panel */}
-        <Panel defaultSize="25%" minSize="15%">
+        <Panel defaultSize={25} minSize={15}>
           <div className="flex h-full flex-col">
-            <div className="h-1/2 overflow-hidden border-b border-gray-800">
+            <div className="h-1/2 overflow-hidden">
               <FileExplorer
                 containerId={containerId}
                 token={token}
@@ -241,7 +274,7 @@ export default function MissionPage() {
                 refreshTrigger={refreshTrigger}
               />
             </div>
-            <div className="h-1/2 overflow-hidden">
+            <div className="h-1/2 overflow-hidden border-t border-[var(--border)]">
               <MissionPanel
                 mission={mission}
                 currentStage={currentStage}
@@ -256,20 +289,35 @@ export default function MissionPage() {
           </div>
         </Panel>
 
-        <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-emerald-600 transition-colors" />
+        <PanelResizeHandle className="w-[2px] bg-[var(--border)] hover:bg-[var(--accent-primary)] transition-colors cursor-col-resize" />
 
         {/* Centre panel: Code Editor */}
-        <Panel defaultSize="50%" minSize="20%">
+        <Panel defaultSize={50} minSize={20}>
           <CodeEditor files={[]} onSave={handleSave} />
         </Panel>
 
-        <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-emerald-600 transition-colors" />
+        <PanelResizeHandle className="w-[2px] bg-[var(--border)] hover:bg-[var(--accent-primary)] transition-colors cursor-col-resize" />
 
         {/* Right panel: Terminal */}
-        <Panel defaultSize="25%" minSize="15%">
+        <Panel defaultSize={25} minSize={15}>
           <Terminal containerId={containerId} token={token} />
         </Panel>
       </PanelGroup>
+
+      {/* Stage complete overlay */}
+      {stageComplete && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90">
+          <div className="font-display text-4xl text-[var(--accent-primary)] tracking-wider animate-stage-complete">
+            STAGE COMPLETE
+          </div>
+          <div className="mt-4 text-sm font-mono text-[var(--text-secondary)] animate-fade-in">
+            LOADING INTEL...
+          </div>
+          <div className="mt-4 h-1 w-48 bg-[var(--bg-tertiary)] rounded-tactical overflow-hidden">
+            <div className="h-full bg-[var(--accent-primary)] animate-pulse" style={{ width: '60%' }} />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

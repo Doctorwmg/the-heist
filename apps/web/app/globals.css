@@ -2,4 +2,206 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
 @import '@xterm/xterm/css/xterm.css';
+
+@layer base {
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1a1a1a;
+    --border: #2a2a2a;
+    --border-active: #d4a843;
+    --text-primary: #f0f0f0;
+    --text-secondary: #888888;
+    --text-accent: #d4a843;
+    --accent-primary: #d4a843;
+    --accent-secondary: #c49b38;
+    --accent-glow: rgba(212, 168, 67, 0.15);
+    --success: #4ade80;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --info: #60a5fa;
+    --terminal-bg: #0d0d0d;
+    --terminal-text: #d4a843;
+    --terminal-cursor: #d4a843;
+    --classified-red: #8b0000;
+    --classified-bg: rgba(139, 0, 0, 0.1);
+    --font-display: 'Black Ops One', 'Impact', sans-serif;
+    --font-body: 'Inter', 'Segoe UI', sans-serif;
+    --font-mono: 'Fira Code', 'Droid Sans Mono', monospace;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: rgba(212, 168, 67, 0.3);
+    color: var(--text-accent);
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--accent-secondary);
+    border-radius: 2px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+  }
+
+  /* Focus outlines */
+  :focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  /* Links */
+  a {
+    color: var(--text-accent);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+}
+
+@layer components {
+  /* Panel header bar — shared across Terminal, Editor, File Explorer */
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    user-select: none;
+  }
+
+  /* Status dot */
+  .status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .status-dot--connected { background-color: var(--success); }
+  .status-dot--disconnected { background-color: var(--danger); }
+  .status-dot--connecting { background-color: var(--accent-primary); animation: badge-pulse 1s ease-in-out infinite; }
+
+  /* CRT scan line overlay */
+  .crt-overlay {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    z-index: 10;
+  }
+
+  /* Classified stamp */
+  .classified-stamp {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    font-family: var(--font-display);
+    font-size: 48px;
+    color: var(--classified-red);
+    opacity: 0;
+    pointer-events: none;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    border: 4px solid var(--classified-red);
+    padding: 4px 16px;
+    animation: stamp-slam 0.4s ease-out forwards;
+    box-shadow: 0 0 20px rgba(139, 0, 0, 0.3);
+  }
+
+  /* Amber button */
+  .btn-amber {
+    background-color: var(--accent-primary);
+    color: #000;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 2px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-body);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 14px;
+    transition: background-color 0.15s, box-shadow 0.15s;
+  }
+  .btn-amber:hover {
+    background-color: var(--accent-secondary);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .btn-amber:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-primary);
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-family: var(--font-body);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 14px;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-ghost:hover {
+    border-color: var(--accent-primary);
+    color: var(--text-accent);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+  .text-accent {
+    color: var(--text-accent);
+  }
+}
